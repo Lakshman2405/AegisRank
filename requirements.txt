@@ -1,0 +1,10 @@
+streamlit
+pandas
+pyyaml
+python-dotenv
+langchain-core
+langchain-groq
+langchain-qdrant
+qdrant-client
+fastembed
+langchain-community

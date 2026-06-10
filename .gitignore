@@ -1,0 +1,17 @@
+# Local Virtual Environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Massive Raw Challenge Dataset Files
+data/
+*.jsonl
+*.jsonl.gz
+
+# IDE Specific Caches
+.vscode/
+.idea/
+.DS_Store
+
+.env
