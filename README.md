@@ -92,7 +92,14 @@ AegisRank/
 ├── .gitignore                          # Strict file masking constraints (ignores local .env files)
 ├── README.md                           # Comprehensive production documentation and execution blueprint
 ├── requirements.txt                    # Explicit versioned architecture dependency trees
-│
+|
+│── data/
+│   |── candidates.jsonl
+|   |── clean_candidates.jsonl
+|   |── job_description.docx
+|   |── sample_candidates.json
+|
+|
 ├── src/                                # Main Core Application Directory
 │   ├── app.py                          # Streamlit UI Dashboard Interface
 │   │── main.py
