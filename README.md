@@ -1,6 +1,6 @@
 # AegisRank: High-Volume Agentic Retrieval & Behavioral Ranking Pipeline
 
-[![Streamlit App](https://static.streamlit.io/badge/github/streamlit_badge.svg)](https://aegisrank.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badge/github/streamlit_badge.svg)](https://aegisrank-2sylvkc9vbz2nmpxi6yg7c.streamlit.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
