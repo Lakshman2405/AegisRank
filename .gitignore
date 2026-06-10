@@ -4,10 +4,6 @@ venv/
 __pycache__/
 *.pyc
 
-# Massive Raw Challenge Dataset Files
-data/
-*.jsonl
-*.jsonl.gz
 
 # IDE Specific Caches
 .vscode/
