@@ -11,7 +11,7 @@ team_members:
   email: mohanasaipraneetha778@gmail.com
   role: QA Tester
 github_repo: https://github.com/Lakshman2405/AegisRank
-sandbox_link: https://aegisrank.streamlit.app
+sandbox_link: https://aegisrank-2sylvkc9vbz2nmpxi6yg7c.streamlit.app/
 reproduce_command: streamlit run src/app.py
 hardware_requirements:
   cpu: Standard U-Series CPU
@@ -19,11 +19,11 @@ hardware_requirements:
   gpu: No dedicated GPU (100% CPU Execution)
   runtime_minutes: 2
 ai_tools_used:
-- Cursor
 - Gemini
-methodology_summary: Hybrid semantic evaluation pipeline using local FastEmbed 384-dim
-  indices and a remote Qdrant Cloud cluster. Incorporates deterministic Redrob behavioral
-  multipliers to defeat keyword stuffing.
+methodology_summary: Deterministic offline semantic ranking engine utilizing an in-process
+  local Qdrant instance. Features automated layout pattern guards and mathematical
+  behavioral multipliers to insulate rankings from keyword-stuffed profiles and honeypot
+  structures.
 declarations:
   read_submission_spec: true
   code_is_original_work: true

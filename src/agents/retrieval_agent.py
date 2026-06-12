@@ -141,7 +141,7 @@ class IntelligentRetrievalEngine:
             
         df = pd.DataFrame(compiled_candidates)
         
-        # Enforce multi-key sorting (Score Descending, Candidate ID Ascending) to break ties deterministically [cite: 23, 24, 25]
+        # Enforce multi-key sorting (Score Descending, Candidate ID Ascending) to break ties deterministically
         df = df.sort_values(by=["score", "candidate_id"], ascending=[False, True]).reset_index(drop=True)
         
         top_100_df = df.head(sample_size).copy()
@@ -150,16 +150,16 @@ class IntelligentRetrievalEngine:
         logging.info("📝 Synthesizing multi-layered factual justification matrices...")
         final_rows = []
         
-        # Fast local token match parser to extract specialized intersection terms for the JD connection [cite: 49]
+        # Fast local token match parser to extract specialized intersection terms for the JD connection
         jd_tokens = set(re.findall(r'\b\w+\b', target_jd.lower()))
         
         for idx, row in top_100_df.iterrows():
-            # 1. Extract Matching Skills [cite: 49]
+            # 1. Extract Matching Skills 
             cand_skills = row["skills"]
             matched_skills = [s for s in cand_skills if s.lower() in jd_tokens]
             skills_display = ", ".join(matched_skills[:3]) if matched_skills else "core technical framework stack"
             
-            # 2. Contextual Experience Phrase (Rank Consistency) [cite: 49]
+            # 2. Contextual Experience Phrase (Rank Consistency)
             yoe_val = row["yoe"]
             if yoe_val >= 7:
                 exp_phrase = f"Demonstrates tier-1 technical maturity with {yoe_val} years of domain execution"
@@ -168,7 +168,7 @@ class IntelligentRetrievalEngine:
             else:
                 exp_phrase = f"Presents {yoe_val} years of targeted specialized experience"
                 
-            # 3. Dynamic Technical Proof points (GitHub Signal) [cite: 49]
+            # 3. Dynamic Technical Proof points (GitHub Signal)
             git_val = row["github"]
             if git_val > 70:
                 proof_phrase = f"backed by exceptional open-source contributions (GitHub score: {git_val})"
@@ -177,20 +177,20 @@ class IntelligentRetrievalEngine:
             else:
                 proof_phrase = "with baseline repository verification parameters"
                 
-            # 4. Honesty & Risk Evaluation Metrics (Completeness / Traps Checks) [cite: 49]
+            # 4. Honesty & Risk Evaluation Metrics (Completeness / Traps Checks)
             comp_val = row["completeness"]
             search_val = row["search_appearance"]
             
-            # Formulate clear contextual checks to surface alignment flags [cite: 49]
+            # Formulate clear contextual checks to surface alignment flags 
             consulting_firms = ["tcs", "infosys", "wipro", "accenture", "cognizant", "capgemini"]
             if any(firm in row["profile_text"].lower() for firm in consulting_firms):
-                risk_phrase = "Note: Profile includes large-scale IT consulting exposure; evaluated primarily on isolated engineering attributes." [cite: 49]
+                risk_phrase = "Note: Profile includes large-scale IT consulting exposure; evaluated primarily on isolated engineering attributes." 
             elif comp_val < 65:
-                risk_phrase = f"Note: Candidate profile completeness sits lower at {comp_val}%, showing minor portfolio gaps despite technical alignment." [cite: 49]
+                risk_phrase = f"Note: Candidate profile completeness sits lower at {comp_val}%, showing minor portfolio gaps despite technical alignment."
             elif search_val > 50:
-                risk_phrase = f"High marketplace inbound observed ({search_val} search appearances), confirming strong industry traction." [cite: 49]
+                risk_phrase = f"High marketplace inbound observed ({search_val} search appearances), confirming strong industry traction." 
             else:
-                risk_phrase = "Profile architecture presents high behavioral coherence across structural milestones." [cite: 49]
+                risk_phrase = "Profile architecture presents high behavioral coherence across structural milestones."
 
             # 5. Assemble Advanced Multi-Sentence Reasoning Narrative 
             reasoning_text = f"{exp_phrase}, directly matching requirements through focused application of {skills_display} {proof_phrase}. {risk_phrase}"
@@ -205,13 +205,13 @@ class IntelligentRetrievalEngine:
         output_dir = "submission"
         os.makedirs(output_dir, exist_ok=True)
         
-        # Enforce exact registration filename spec [cite: 9]
+        # Enforce exact registration filename spec 
         csv_path = os.path.join(output_dir, "team_6a26b0c93c432ee4828a149d.csv")
         yaml_path = os.path.join(output_dir, "submission_metadata.yaml")
         
         with open(csv_path, "w", encoding="utf-8", newline="") as csv_file:
             writer = csv.writer(csv_file)
-            writer.writerow(["candidate_id", "rank", "score", "reasoning"]) [cite: 13]
+            writer.writerow(["candidate_id", "rank", "score", "reasoning"]) 
             for item in final_rows:
                 writer.writerow([
                     item["candidate_id"],
@@ -222,7 +222,7 @@ class IntelligentRetrievalEngine:
                 
         logging.info(f"[✓] Specification compliant CSV generated at: {csv_path}")
         
-        # Write clean, compliant YAML template to submission directory [cite: 112]
+        # Write clean, compliant YAML template to submission directory 
         metadata_payload = {
             "team_name": "AegisRank",
             "primary_contact": {
@@ -251,7 +251,7 @@ class IntelligentRetrievalEngine:
                 "gpu": "No dedicated GPU (100% CPU Execution)",
                 "runtime_minutes": 2
             },
-            "ai_tools_used": ["Cursor", "Gemini"],
+            "ai_tools_used": ["Gemini"],
             "methodology_summary": (
                 "Deterministic offline semantic ranking engine utilizing an in-process local Qdrant instance. "
                 "Features automated layout pattern guards and mathematical behavioral multipliers to insulate "
