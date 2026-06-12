@@ -1,6 +1,6 @@
 # AegisRank: High-Volume Agentic Retrieval & Behavioral Ranking Pipeline
 
-[![Streamlit App](https://static.streamlit.io/badge/github/streamlit_badge.svg)](https://aegisrank.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badge/github/streamlit_badge.svg)](https://aegisrank-2sylvkc9vbz2nmpxi6yg7c.streamlit.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
@@ -92,7 +92,14 @@ AegisRank/
 ├── .gitignore                          # Strict file masking constraints (ignores local .env files)
 ├── README.md                           # Comprehensive production documentation and execution blueprint
 ├── requirements.txt                    # Explicit versioned architecture dependency trees
-│
+|
+│── data/
+│   |── candidates.jsonl
+|   |── clean_candidates.jsonl
+|   |── job_description.docx
+|   |── sample_candidates.json
+|
+|
 ├── src/                                # Main Core Application Directory
 │   ├── app.py                          # Streamlit UI Dashboard Interface
 │   │── main.py
