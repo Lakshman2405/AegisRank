@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
-An enterprise-grade, agentic retrieval-augmented talent scoring pipeline engineered to parse, filter, and rank high-volume candidate datasets. AegisRank implements a hybrid evaluation strategy that combines dense semantic vector spaces with deterministic behavioral multipliers to eliminate "keyword-stuffer" profiles, backed by an LLM synthesis layer for automated verification tracking.
+An enterprise-grade, localized retrieval-augmented talent scoring pipeline engineered to parse, filter, and rank high-volume candidate datasets entirely offline. AegisRank implements a hybrid evaluation strategy that combines dense semantic vector spaces with deterministic behavioral multipliers and strategic disqualification filters to eliminate "keyword-stuffer" profiles, backed by a high-speed local token-matching parser for automated reasoning synthesis.
 
 ---
 
@@ -26,14 +26,14 @@ The system architecture decouples data ingestion, dense retrieval, mathematical 
                                      |
                                      v
 +------------------------------------+-------------------------------------+
-|                         3. Cloud Routing Matrix                          |
-|         Remote Cluster Synchronization via Qdrant Cloud Free Tier        |
+|                         3. In-Process Storage Vector Matrix              |
+|         100% Offline Embedded Database Storage via Qdrant Local Engine   |
 +------------------------------------+-------------------------------------+
                                      |
                                      v
 +------------------------------------+-------------------------------------+
-|                     4. Behavioral Scopes & Modifiers                     |
-|    Heuristic Adjustments: Multiplicative Weights (YoE + GitHub Telemetry)|
+|                     4. Behavioral Scopes & Disqualifiers                 |
+|   Heuristic Multipliers (YoE + GitHub) + Targeted Exclusions (Consulting)|
 +------------------------------------+-------------------------------------+
                                      |
                                      v
@@ -44,30 +44,34 @@ The system architecture decouples data ingestion, dense retrieval, mathematical 
                                      |
                                      v
 +------------------------------------+-------------------------------------+
-|                       6. Agentic Synthesis Layer                         |
-|   Groq Cloud (Llama-3-70b-8192) Inference Engine -> Context-Bound Logics|
+|                       6. Local Synthesis Layer                           |
+|   Rule-Based Token Context Match Engine -> Context-Bound Fact Generation |
 +------------------------------------+-------------------------------------+
                                      |
                                      v
-+------------------------------------+-------------------------------------+
-|                        7. Regulated Artifacts                            |
-|       submission/submission.csv  |  submission/submission_metadata.yaml  |
-+--------------------------------------------------------------------------+
++------------------------------------+-------------------------------------------------+
+|                        7. Regulated Artifacts                                        |
+|submission/team_6a26b0c93c432ee4828a149d.csv  |  submission/submission_metadata.yaml  |
++--------------------------------------------------------------------------------------+
 ```
 
 ### 🧠 Core Architectural Components
 
 1. **Embedding Processing Layer**: Utilizing `FastEmbed` loaded with the `BAAI/bge-small-en-v1.5` framework, producing high-performance 384-dimensional dense vectors calculated locally on CPU.
-2. **Vector Space Topology**: Real-time hosting routed via a remote cluster node on `Qdrant Cloud`. Spatial matching leverages standard Cosine Similarity matrices to isolate technical candidate traits.
-3. **Behavioral Optimization Engines**: Rather than relying strictly on raw semantic similarity (which is susceptible to text-manipulation traps), candidate scores are adjusted using mathematical telemetry modifiers:
+2. **Vector Space Topology**: Initialized entirely in local mode (`path="data/local_qdrant_storage"`), running an in-process thread inside the application. Spatial matching leverages standard Cosine Similarity matrices to isolate technical candidate traits completely air-gapped.
+3. **Behavioral Optimization & Disqualification Engines**: Rather than relying strictly on raw semantic similarity (which is susceptible to text-manipulation traps), candidate scores are adjusted using mathematical telemetry modifiers and explicit corporate profile penalties:
 
-$$\text{Final Score} = (\text{Base Similarity} \times 0.50) + (\text{YoE Modifier} \times 0.25) + (\text{GitHub Modifier} \times 0.25)$$
+$$\text{Final Score} = \text{round}\Big(\big((\text{Base Similarity} \times 0.50) + (\text{YoE Modifier} \times 0.25) + (\text{GitHub Modifier} \times 0.25)\big) \times \text{Multiplier}, 4\Big)$$
 
    - *Years of Experience (YoE) Modifier*: Extracted linearly up to a 10-year normalization index cap ($\min(\text{YoE}, 10) / 10.0$).
-   - *GitHub Activity Modifier*: Map telemetry logs directly against a base $100$-point performance vector scale.
+   - *GitHub Activity Modifier*: Maps telemetry logs directly against a base $100$-point performance vector scale.
+   - *Strategic Disqualification Multipliers*: Automatically penalizes profiles matching explicit Job Description exclusions to prioritize product-focused backgrounds:
+     - Large-scale IT Consulting firms (e.g., TCS, Infosys, Wipro, Accenture, Cognizant, Capgemini) $\rightarrow$ **Multiplied by 0.45**
+     - Pure academic research backgrounds lacking production experience $\rightarrow$ **Multiplied by 0.40**
+     - Low engagement/zero platform presence (0 search appearances in 30 days) $\rightarrow$ **Multiplied by 0.85**
 
-4. **Tie-Breaker Resolution Logic**: To eliminate microscopic floating-point noise from different indexing runs, final metrics are strictly evaluated up to $4$ decimal points of precision (`round(..., 4)`). Ties are deterministically broken by routing the indices through multi-key sort constraints: Primary Sort → `score` (Descending); Secondary Tie-Breaker → `candidate_id` (Alphanumeric Ascending).
-5. **Agentic Verification Synthesizer**: The top $100$ candidate sets are routed directly into an active `Groq Cloud` pipeline running `llama3-70b-8192` with zero-variance operational temperatures (`temperature=0.1`). This generates 1-2 sentence context-bound explanations based strictly on factual profile points.
+4. **Tie-Breaker Resolution Logic**: To eliminate floating-point noise across indexing runs, final metrics are strictly evaluated up to $4$ decimal points of precision. Ties are deterministically broken by routing indices through multi-key sort constraints: Primary Sort $\rightarrow$ `score` (Descending); Secondary Tie-Breaker $\rightarrow$ `candidate_id` (Alphanumeric Ascending).
+5. **Contextual Reasoning Generator**: The top $100$ candidate rows are processed through a fast, local token-matching parser that computes intersections against Job Description keywords. It synthesizes a 1-2 sentence fact-driven narrative evaluating the candidate's technical profile, verified experience, open-source activity levels, and structural gaps without external API network overhead.
 
 ---
 
@@ -79,8 +83,8 @@ The platform is explicitly optimized to fit within the restrictive runtime and c
 | :--- | :--- | :--- |
 | **Compute Engine** | Standard Intel/AMD U-Series CPU | 100% Core Optimized execution paths; no local dedicated GPU required. |
 | **RAM Threshold** | Maximum 16GB Allocation | Lazy-loading, streaming data iterators, and chunked vector payloads prevent memory leaks. |
-| **Network Context** | Total Air-Gapped during Ranking | All vector evaluations, sorting arrays, and mathematical modifications happen offline. |
-| **Time Threshold** | Maximum 5 Minutes | Complete 96K pipeline ingestion to final file generation completes in **under 2 minutes**. |
+| **Network Context** | Total Air-Gapped during Ranking | **100% Offline.** All vector evaluations, sorting arrays, and reasoning generations happen without external API calls. |
+| **Time Threshold** | Maximum 5 Minutes | Complete 96K pipeline index scan and submission asset compilation executes in **under 2 minutes**. |
 
 ---
 
@@ -89,26 +93,26 @@ The platform is explicitly optimized to fit within the restrictive runtime and c
 ```text
 AegisRank/
 │
-├── .gitignore                          # Strict file masking constraints (ignores local .env files)
+├── .gitignore                          # Strict file masking constraints (ignores local environment caches)
 ├── README.md                           # Comprehensive production documentation and execution blueprint
 ├── requirements.txt                    # Explicit versioned architecture dependency trees
 |
 │── data/
-│   |── candidates.jsonl
-|   |── clean_candidates.jsonl
+│   |── candidates.jsonl                # Raw data candidate list
+|   |── clean_candidates.jsonl          # Cleaned data candidate list
 |   |── job_description.docx
 |   |── sample_candidates.json
-|
+|   └── local_qdrant_storage/           # Pre-computed, local 96,796 candidate vector database index
 |
 ├── src/                                # Main Core Application Directory
 │   ├── app.py                          # Streamlit UI Dashboard Interface
 │   │── main.py
 │   └── agents/
-│       |── retrieval_agent.py          # Vector engines, sorting algorithms, and YAML/CSV generation pipelines
-|       |── ingestion_agent.py
+│       |── retrieval_agent.py          # Local vector engine, deterministic multi-key sorter, and file writers
+|       |── ingestion_agent.py          # Structural schemas, pattern guards, and timeline chronology auditors
 │
 └── submission/                         # Target Submission Output Folder
-    ├── submission.csv                  # Standardized multi-key sorted ranking artifact table
+    ├── team_6a26b0c93c432ee4828a149d.csv                  # Standardized multi-key sorted ranking artifact table
     └── submission_metadata.yaml        # Schema-matched metadata confirmation log file
 ```
 
@@ -140,16 +144,6 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Environment Variables Configuration
-
-Create a `.env` file directly within your root folder (`AegisRank/`). Do not place it in the `src/` directory. Populate the file with your active service credentials:
-
-```ini
-QDRANT_CLOUD_URL="https://your-unique-cluster-id.cloud.qdrant.io:6333"
-QDRANT_CLOUD_API_KEY="your-secure-high-entropy-qdrant-cloud-token"
-GROQ_API_KEY="gsk_your_secure_groq_production_api_key_string"
-```
-
 ---
 
 ## 🚀 Local Operation Guide
@@ -165,7 +159,7 @@ streamlit run src/app.py
 1. Open `http://localhost:8501` in your web browser.
 2. Paste the target requirements description document inside the application configuration UI field.
 3. Trigger **Run Agentic Pipeline & Compile Submission Pack**.
-4. The pipeline will query your cloud index, execute behavioral adjustments, resolve scores up to $4$ decimal points, apply secondary alphanumeric tie-breakers, invoke the Groq agent, and dump all required outputs directly into the `submission/` folder.
+4. The pipeline will query your local vector database storage, apply behavioral adjustments and corporate disqualifiers, resolve scores up to $4$ decimal points, apply secondary alphanumeric tie-breakers, parse contextual reasonings, and generate your submission pack inside the submission/ folder in under 2 minutes total.
 
 ---
 
@@ -175,11 +169,11 @@ As dictated by the strict transparency directives of the competition, we declare
 
 ### AI Tools Utilized
 
-- **Gemini**: Algorithmic optimization of pandas dataframe operations, vector indexing alignment scripts, and code refactoring loops to handle edge-case tie resolution without altering core system variables.
+- **Gemini**: Algorithmic optimization of pandas dataframe operations, local vector indexing alignment scripts, structural layout pattern guards, and mathematical filtering logic to handle deterministic tie resolutions without altering core system variables.
 
 ### Usage Summary
 
-AI tools were strictly treated as paired-programming extensions to increase delivery speeds and verify code quality. Throughout the entire development lifecycle, zero candidate data or profile information was exposed or uploaded to external LLM tokenizers. All telemetry assessments and mathematical scores were processed using deterministic local computing matrices.
+AI tools were strictly treated as paired-programming extensions to increase delivery speeds and verify code quality. Throughout the entire development lifecycle, zero candidate data or profile information was exposed or uploaded to external hosted LLM tokenizers during the ranking step. All telemetry assessments and mathematical scores were processed using deterministic local computing matrices.
 
 ---
 
