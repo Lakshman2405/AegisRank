@@ -6,8 +6,6 @@ import re
 import csv
 import logging
 import pandas as pd
-from typing import List, Dict, Any
-from langchain_groq import ChatGroq
 from langchain_qdrant import QdrantVectorStore
 from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_core.documents import Document
@@ -55,153 +53,610 @@ class IntelligentRetrievalEngine:
             embedding=self.embedding_engine
         )
 
-    def synchronize_vector_repository(self, clean_cache_path: str, indexing_batch_limit: int = 200):
-        """Streams candidate blocks directly to the local storage index with safe batch buffers."""
-        current_status = self.database_client.get_collection(self.vector_repository.collection_name)
+    def synchronize_vector_repository(self, clean_cache_path: str, indexing_batch_limit: int = 1000):
+        """
+        Streams candidate blocks directly to the local storage index
+        with aggressive debugging enabled.
+        """
+        print("SYNC ENGINE STARTED")
+        print("COLLECTION =", self.vector_repository.collection_name)
+        print(
+            "LOCAL PATH =",
+            os.path.abspath(
+                os.path.join(
+                    "data",
+                    "local_qdrant_storage"
+                )
+            )
+        )
+
+        # ---------------------------------------------------------
+        # Count clean candidate records
+        # ---------------------------------------------------------
+
+        clean_file_count = 0
+
+        with open(clean_cache_path, "r", encoding="utf-8") as f:
+            for _ in f:
+                clean_file_count += 1
+
+        print(f"CLEAN FILE RECORD COUNT = {clean_file_count}")
+        # ---------------------------------------------------------
+        # Current collection state
+        # ---------------------------------------------------------
+
+        current_status = self.database_client.get_collection(
+            self.vector_repository.collection_name
+        )
+        print(f"CURRENT POINT COUNT = {current_status.points_count}")
+        # ---------------------------------------------------------
+        # Existing collection
+        # ---------------------------------------------------------
+
         if current_status.points_count > 0:
-            logging.info(f"[✓] Cloud database holds {current_status.points_count} vectors. Skipping ingestion.")
+            logging.info(
+                f"[✓] Existing collection contains "
+                f"{current_status.points_count} vectors. "
+                f"Skipping ingestion."
+            )
             return
+
+        # ---------------------------------------------------------
+        # Fresh ingestion
+        # ---------------------------------------------------------
 
         logging.info("🚀 Pushing candidate records to Qdrant Local Storage...")
         document_buffer = []
         indexed_counter = 0
-        
         with open(clean_cache_path, "r", encoding="utf-8") as f:
             for line in f:
                 record = json.loads(line)
                 metadata = record["telemetry"]
                 metadata["candidate_id"] = record["candidate_id"]
-                
-                doc = Document(page_content=record["semantic_narrative_block"], metadata=metadata)
+                doc = Document(
+                    page_content=record[
+                        "semantic_narrative_block"
+                    ],
+                    metadata=metadata
+                )
                 document_buffer.append(doc)
-                
                 if len(document_buffer) == indexing_batch_limit:
-                    self.vector_repository.add_documents(document_buffer)
-                    indexed_counter += len(document_buffer)
-                    logging.info(f" ├── [Cloud Stream Engine] Ingested {indexed_counter} profiles...")
+                    self.vector_repository.add_documents(
+                        document_buffer
+                    )
+                    indexed_counter += len(
+                        document_buffer
+                    )
+                    logging.info(
+                        f" ├── [INDEX ENGINE] "
+                        f"Ingested {indexed_counter} profiles..."
+                    )
                     document_buffer = []
-                    
+
+            # ---------------------------------------------
+            # Final batch
+            # ---------------------------------------------
             if document_buffer:
-                self.vector_repository.add_documents(document_buffer)
-                indexed_counter += len(document_buffer)
-                
-        logging.info(f"=== 🏁 FULL CLOUD STREAM COMPLETE: {indexed_counter} PROFILES SECURED ===")
+                self.vector_repository.add_documents(
+                    document_buffer
+                )
+                indexed_counter += len(
+                    document_buffer
+                )
+        # ---------------------------------------------------------
+        # Final verification
+        # ---------------------------------------------------------
+        final_status = self.database_client.get_collection(
+            self.vector_repository.collection_name
+        )
+        print("INGESTION COMPLETE")
+        print(
+            f"CLEAN FILE RECORDS = {clean_file_count}"
+        )
+        print(
+            f"INDEXED RECORDS = {indexed_counter}"
+        )
+        print(
+            f"FINAL QDRANT POINT COUNT = "
+            f"{final_status.points_count}"
+        )
+        logging.info(
+            f"=== 🏁 FULL INGESTION COMPLETE: "
+            f"{indexed_counter} PROFILES SECURED ==="
+        )
 
     def run_agentic_ranking_pipeline(self, target_jd: str, sample_size: int = 100):
-        """Ranks candidates on CPU, penalizes negative patterns, breaks ties deterministically, 
-
-        and generates high-fidelity fact-driven reasonings without making external network API calls.
         """
-        logging.info("Running high-speed vector scan over candidate pool...")
-        # Fetching a larger pool to allow filtering and down-weighting without draining the top 100
-        matched_docs = self.vector_repository.similarity_search_with_relevance_scores(query=target_jd, k=300)
-        
-        compiled_candidates = []
-        for doc, vector_score in matched_docs:
-            telemetry = doc.metadata
-            profile_text = doc.page_content.lower()
-            
-            base_score = float(vector_score)
-            yoe_val = float(telemetry.get("years_of_experience", 0))
-            yoe_mod = min(yoe_val, 10) / 10.0
-            github_mod = max(float(telemetry.get("github_activity_score", 0)), 0) / 100.0
-            
-            # --- STRATEGIC JD DISQUALIFIER FILTERS ---
-            multiplier = 1.0
-            
-            # 1. Down-weight pure consulting backgrounds [cite: 197]
-            consulting_firms = ["tcs", "infosys", "wipro", "accenture", "cognizant", "capgemini"]
-            if any(firm in profile_text for firm in consulting_firms):
-                multiplier *= 0.45  
-                
-            # 2. Down-weight pure academic research profiles lacking production experience [cite: 169]
-            research_keywords = ["academic lab", "research assistant", "postdoctoral", "citation count", "professor"]
-            if any(kw in profile_text for kw in research_keywords) and yoe_val < 3:
-                multiplier *= 0.40  
-                
-            # 3. Down-weight low platform activity signals [cite: 231, 232]
-            search_val = int(telemetry.get("search_appearance_30d", 0))
-            if search_val == 0:
-                multiplier *= 0.85
-            
-            # Compute baseline composite score and factor in structural penalties
-            raw_composite = (base_score * 0.50) + (yoe_mod * 0.25) + (github_mod * 0.25)
-            final_score = round(raw_composite * multiplier, 4)
-            
-            compiled_candidates.append({
-                "candidate_id": str(telemetry["candidate_id"]).strip(),
-                "score": final_score,
-                "profile_text": doc.page_content,
-                "yoe": yoe_val,
-                "github": telemetry.get("github_activity_score", -1),
-                "skills": telemetry.get("skills_toolkit", []),
-                "completeness": telemetry.get("profile_completeness_score", 0.0),
-                "search_appearance": search_val
-            })
-            
-        df = pd.DataFrame(compiled_candidates)
-        
-        # Enforce multi-key sorting (Score Descending, Candidate ID Ascending) to break ties deterministically
-        df = df.sort_values(by=["score", "candidate_id"], ascending=[False, True]).reset_index(drop=True)
-        
-        top_100_df = df.head(sample_size).copy()
-        top_100_df["rank"] = top_100_df.index + 1
-        
-        logging.info("📝 Synthesizing multi-layered factual justification matrices...")
-        final_rows = []
-        
-        # Fast local token match parser to extract specialized intersection terms for the JD connection
-        jd_tokens = set(re.findall(r'\b\w+\b', target_jd.lower()))
-        
-        for idx, row in top_100_df.iterrows():
-            # 1. Extract Matching Skills 
-            cand_skills = row["skills"]
-            matched_skills = [s for s in cand_skills if s.lower() in jd_tokens]
-            skills_display = ", ".join(matched_skills[:3]) if matched_skills else "core technical framework stack"
-            
-            # 2. Contextual Experience Phrase (Rank Consistency)
-            yoe_val = row["yoe"]
-            if yoe_val >= 7:
-                exp_phrase = f"Demonstrates tier-1 technical maturity with {yoe_val} years of domain execution"
-            elif yoe_val >= 4:
-                exp_phrase = f"Strong mid-to-senior profile offering {yoe_val} years of verifiable technical experience"
-            else:
-                exp_phrase = f"Presents {yoe_val} years of targeted specialized experience"
-                
-            # 3. Dynamic Technical Proof points (GitHub Signal)
-            git_val = row["github"]
-            if git_val > 70:
-                proof_phrase = f"backed by exceptional open-source contributions (GitHub score: {git_val})"
-            elif git_val > 0:
-                proof_phrase = f"validated via active source control patterns (GitHub score: {git_val})"
-            else:
-                proof_phrase = "with baseline repository verification parameters"
-                
-            # 4. Honesty & Risk Evaluation Metrics (Completeness / Traps Checks)
-            comp_val = row["completeness"]
-            search_val = row["search_appearance"]
-            
-            # Formulate clear contextual checks to surface alignment flags 
-            consulting_firms = ["tcs", "infosys", "wipro", "accenture", "cognizant", "capgemini"]
-            if any(firm in row["profile_text"].lower() for firm in consulting_firms):
-                risk_phrase = "Note: Profile includes large-scale IT consulting exposure; evaluated primarily on isolated engineering attributes." 
-            elif comp_val < 65:
-                risk_phrase = f"Note: Candidate profile completeness sits lower at {comp_val}%, showing minor portfolio gaps despite technical alignment."
-            elif search_val > 50:
-                risk_phrase = f"High marketplace inbound observed ({search_val} search appearances), confirming strong industry traction." 
-            else:
-                risk_phrase = "Profile architecture presents high behavioral coherence across structural milestones."
+        Retrieval Engine V2
+        - Semantic similarity
+        - Availability signals
+        - Recruiter interest signals
+        - Retrieval/Search evidence
+        - Assessment utilization
+        - Consulting penalties
+        - Notice period modifiers
+        - Better reasoning generation
+        """
 
-            # 5. Assemble Advanced Multi-Sentence Reasoning Narrative 
-            reasoning_text = f"{exp_phrase}, directly matching requirements through focused application of {skills_display} {proof_phrase}. {risk_phrase}"
-                
+        logging.info("Running enhanced ranking engine V2...")
+
+        matched_docs = self.vector_repository.similarity_search_with_relevance_scores(
+            query=target_jd,
+            k=5000
+        )
+
+        compiled_candidates = []
+
+        jd_lower = target_jd.lower()
+
+        jd_tokens = set(
+            re.findall(r"\b[a-zA-Z0-9\-\+\.#]+\b", jd_lower)
+        )
+
+        retrieval_keywords = {
+            "retrieval",
+            "search",
+            "ranking",
+            "recommendation",
+            "recommender",
+            "vector",
+            "embedding",
+            "embeddings",
+            "qdrant",
+            "faiss",
+            "pinecone",
+            "elasticsearch",
+            "opensearch",
+            "bm25",
+            "ndcg",
+            "mrr",
+            "map",
+            "candidate retrieval",
+            "talent search",
+            "information retrieval"
+        }
+
+        consulting_firms = {
+            "tcs",
+            "infosys",
+            "wipro",
+            "accenture",
+            "cognizant",
+            "capgemini",
+            "hcl",
+            "tech mahindra",
+            "mindtree",
+            "ltimindtree"
+        }
+
+        research_keywords = {
+            "academic lab",
+            "research assistant",
+            "research scientist",
+            "phd",
+            "professor",
+            "postdoctoral",
+            "citation count"
+        }
+
+        for doc, vector_score in matched_docs:
+
+            telemetry = doc.metadata
+
+            profile_text = doc.page_content.lower()
+
+            candidate_id = str(
+                telemetry.get("candidate_id", "")
+            ).strip()
+
+            # =====================================================
+            # BASE SIMILARITY
+            # =====================================================
+
+            similarity_score = max(
+                float(vector_score),
+                0.0
+            )
+
+            # =====================================================
+            # EXPERIENCE SCORE
+            # =====================================================
+
+            yoe = float(
+                telemetry.get(
+                    "years_of_experience",
+                    0
+                )
+            )
+
+            experience_score = min(
+                yoe,
+                10
+            ) / 10.0
+
+            # =====================================================
+            # GITHUB SCORE
+            # =====================================================
+
+            github_score = max(
+                float(
+                    telemetry.get(
+                        "github_activity_score",
+                        0
+                    )
+                ),
+                0
+            ) / 100.0
+
+            # =====================================================
+            # PROFILE COMPLETENESS SCORE
+            # =====================================================
+            completeness_score = telemetry.get(
+                "profile_completeness_score", 
+                0.0
+            )
+
+            # =====================================================
+            # AVAILABILITY SCORE
+            # =====================================================
+
+            open_to_work = bool(
+                telemetry.get(
+                    "open_to_work_flag",
+                    False
+                )
+            )
+
+            recruiter_response = float(
+                telemetry.get(
+                    "recruiter_response_rate",
+                    0
+                )
+            )
+
+            interview_completion = float(
+                telemetry.get(
+                    "interview_completion_rate",
+                    0
+                )
+            )
+
+            offer_acceptance = float(
+                telemetry.get(
+                    "offer_acceptance_rate",
+                    -1
+                )
+            )
+
+            availability_score = 0.0
+
+            if open_to_work:
+                availability_score += 0.35
+
+            availability_score += (
+                recruiter_response * 0.30
+            )
+
+            availability_score += (
+                interview_completion * 0.25
+            )
+
+            if offer_acceptance >= 0:
+                availability_score += (
+                    offer_acceptance * 0.10
+                )
+
+            availability_score = min(
+                availability_score,
+                1.0
+            )
+
+            # =====================================================
+            # RECRUITER INTEREST SCORE
+            # =====================================================
+
+            search_appearance = int(
+                telemetry.get(
+                    "search_appearance_30d",
+                    0
+                )
+            )
+
+            saved_by_recruiters = int(
+                telemetry.get(
+                    "saved_by_recruiters_30d",
+                    0
+                )
+            )
+
+            profile_views = int(
+                telemetry.get(
+                    "profile_views_received_30d",
+                    0
+                )
+            )
+
+            recruiter_interest_score = (
+                min(search_appearance, 300) / 300.0
+            ) * 0.50
+
+            recruiter_interest_score += (
+                min(saved_by_recruiters, 20) / 20.0
+            ) * 0.30
+
+            recruiter_interest_score += (
+                min(profile_views, 100) / 100.0
+            ) * 0.20
+
+            # =====================================================
+            # ASSESSMENT SCORE
+            # =====================================================
+
+            assessment_scores = telemetry.get(
+                "skill_assessment_scores",
+                {}
+            )
+
+            if assessment_scores:
+                assessment_score = (
+                    sum(assessment_scores.values())
+                    /
+                    len(assessment_scores)
+                ) / 100.0
+            else:
+                assessment_score = 0.50
+
+            # =====================================================
+            # RETRIEVAL / SEARCH EVIDENCE
+            # =====================================================
+
+            retrieval_hits = 0
+
+            for keyword in retrieval_keywords:
+                if keyword in profile_text:
+                    retrieval_hits += 1
+
+            retrieval_evidence_score = min(
+                retrieval_hits / 8.0,
+                1.0
+            )
+
+            # =====================================================
+            # JD SKILL OVERLAP
+            # =====================================================
+
+            skills = telemetry.get(
+                "skills_toolkit",
+                []
+            )
+
+            skill_overlap = 0
+
+            for skill in skills:
+                if skill.lower() in jd_tokens:
+                    skill_overlap += 1
+
+            jd_overlap_score = min(
+                skill_overlap / 8.0,
+                1.0
+            )
+
+
+
+            # =====================================================
+            # MAIN COMPOSITE SCORE
+            # =====================================================
+
+            final_score = (
+                similarity_score * 0.60
+                +
+                retrieval_evidence_score * 0.05
+                +
+                availability_score * 0.10
+                +
+                recruiter_interest_score * 0.10
+                +
+                experience_score * 0.05
+                +
+                github_score * 0.05
+                +
+                assessment_score * 0.03
+                +
+                jd_overlap_score * 0.02
+            )
+
+            # =====================================================
+            # NOTICE PERIOD MODIFIER
+            # =====================================================
+
+            notice_period = int(
+                telemetry.get(
+                    "notice_period_days",
+                    999
+                )
+            )
+
+            if notice_period <= 30:
+                final_score *= 1.02
+            elif notice_period <= 60:
+                final_score *= 1.00
+            elif notice_period <= 90:
+                final_score *= 0.98
+            elif notice_period <= 120:
+                final_score *= 0.95
+            else:
+                final_score *= 0.92
+
+            # =====================================================
+            # CONSULTING PENALTY
+            # =====================================================
+
+            consulting_hits = 0
+
+            for firm in consulting_firms:
+                if firm in profile_text:
+                    consulting_hits += 1
+
+            if consulting_hits >= 3:
+                final_score *= 0.85
+            elif consulting_hits >= 2:
+                final_score *= 0.90
+            elif consulting_hits == 1:
+                final_score *= 0.95
+
+            # =====================================================
+            # RESEARCH PENALTY
+            # =====================================================
+
+            research_hits = 0
+
+            for kw in research_keywords:
+                if kw in profile_text:
+                    research_hits += 1
+
+            if research_hits > 0 and yoe < 3:
+                final_score *= 0.60 
+
+            final_score = round(
+                final_score,
+                4
+            )
+
+            compiled_candidates.append({
+                "candidate_id": candidate_id,
+                "score": final_score,
+                "profile_text": profile_text,
+                "skills": skills,
+                "yoe": yoe,
+                "github": telemetry.get(
+                    "github_activity_score",
+                    -1
+                ),
+                "availability": availability_score,
+                "interest": recruiter_interest_score,
+                "retrieval_score": retrieval_evidence_score,
+                "assessment": assessment_score,
+                "search_appearance": search_appearance,
+                "completeness" : completeness_score,
+                "notice_period": notice_period,
+                "open_to_work": open_to_work
+            })
+
+
+
+        scores = [x["score"] for x in compiled_candidates]
+
+        df = pd.DataFrame(compiled_candidates)
+
+        df = df.sort_values(
+            by=["score", "candidate_id"],
+            ascending=[False, True]
+        ).reset_index(drop=True)
+
+        top_100_df = df.head(
+            sample_size
+        ).copy()
+
+        top_100_df["rank"] = (
+            top_100_df.index + 1
+        )
+
+        logging.info(
+            "Generating factual reasoning..."
+        )
+
+        final_rows = []
+
+        for _, row in top_100_df.iterrows():
+
+            reason_parts = []
+
+            if row["yoe"] >= 7:
+                reason_parts.append(
+                    f"Demonstrates tier-1 technical maturity with {row['yoe']} years of domain execution"
+                )
+            elif row["yoe"] >= 4:
+                reason_parts.append(
+                    f"Strong mid-to-senior profile offering {row['yoe']} years of verifiable technical experience"
+                )
+            else:
+                reason_parts.append(
+                    f"Presents {row['yoe']} years of targeted specialized experience"
+                )
+
+            if row["retrieval_score"] > 0.30:
+                reason_parts.append(
+                    "demonstrates retrieval/search-related expertise"
+                )
+
+            if row["github"] > 70:
+                reason_parts.append(
+                    f"backed by exceptional open-source contributions (GitHub score: {row['github']} )"
+                )
+            elif row["github"] > 0:
+                reason_parts.append(
+                    f"validated via active source control patterns (GitHub score: {row['github']})"
+                )
+            else:
+                reason_parts.append(
+                    f"with baseline repository verification parameters"
+                )
+            
+            consulting_firm = ["tcs", "infosys", "wipro", "accenture", "cognizant", "capgemini", "hcl", "tech mahindra", "mindtree", "ltimindtree"]
+            if any(firm in row["profile_text"] for firm in consulting_firm):
+                reason_parts.append(
+                    "Note: Profile includes large-scale IT consulting exposure; evaluated primarily on isolated engineering attributes." 
+                )
+            elif row["completeness"] < 65:
+                reason_parts.append(
+                    f"Note: Candidate profile completeness sits lower at {row['completeness']}%, showing minor portfolio gaps despite technical alignment."
+                )
+            elif row["search_appearance"] > 50:
+                reason_parts.append(
+                    f"High marketplace inbound observed ({row['search_appearance']} search appearances), confirming strong industry traction." 
+                )
+            else:
+                reason_parts.append(
+                    "Profile architecture presents high behavioral coherence across structural milestones."
+                )
+
+
+            if row["availability"] > 0.60:
+                reason_parts.append(
+                    "strong hiring availability signals"
+                )
+
+            if row["interest"] > 0.60:
+                reason_parts.append(
+                    "high recruiter engagement metrics"
+                )
+
+            if row["assessment"] > 0.70:
+                reason_parts.append(
+                    "above-average technical assessment performance"
+                )
+
+            if row["open_to_work"]:
+                reason_parts.append(
+                    "actively open to opportunities"
+                )
+
+            if not reason_parts:
+                reason_parts.append(
+                    "strong semantic alignment with target role"
+                )
+
+            reasoning = (
+                ". ".join(reason_parts)
+                + "."
+            )
+
             final_rows.append({
                 "candidate_id": row["candidate_id"],
                 "rank": int(row["rank"]),
                 "score": float(row["score"]),
-                "reasoning": str(reasoning_text)
+                "reasoning": reasoning
             })
-            
         output_dir = "submission"
         os.makedirs(output_dir, exist_ok=True)
         
@@ -224,46 +679,145 @@ class IntelligentRetrievalEngine:
         
         # Write clean, compliant YAML template to submission directory 
         metadata_payload = {
-            "team_name": "AegisRank",
-            "primary_contact": {
-                "name": "Sikhakolli Lakshman Guru Sai",
-                "email": "lakshmangurusai24@gmail.com",
-                "phone": "+91-9398019114"
-            },
-            "team_members": [
-                {
+                "team_name": "Data Dynamas",
+                "team_id": "6a26b0c93c432ee4828a149d",
+
+                
+                "primary_contact": {
                     "name": "Sikhakolli Lakshman Guru Sai",
                     "email": "lakshmangurusai24@gmail.com",
-                    "role": "Lead AI/ML Engineer"
+                    "phone": "+91-9398019114"
                 },
-                {
-                    "name": "Sikhakolli Mohana Sai Praneetha",
-                    "email": "mohanasaipraneetha778@gmail.com",
-                    "role": "QA Tester"
-                }
-            ],
-            "github_repo": "https://github.com/Lakshman2405/AegisRank",
-            "sandbox_link": "https://aegisrank-2sylvkc9vbz2nmpxi6yg7c.streamlit.app/",
-            "reproduce_command": "streamlit run src/app.py",
-            "hardware_requirements": {
-                "cpu": "Standard U-Series CPU",
-                "ram": "16GB RAM",
-                "gpu": "No dedicated GPU (100% CPU Execution)",
-                "runtime_minutes": 2
-            },
-            "ai_tools_used": ["Gemini"],
-            "methodology_summary": (
-                "Deterministic offline semantic ranking engine utilizing an in-process local Qdrant instance. "
-                "Features automated layout pattern guards and mathematical behavioral multipliers to insulate "
-                "rankings from keyword-stuffed profiles and honeypot structures."
-            ),
-            "declarations": {
-                "read_submission_spec": True,
-                "code_is_original_work": True,
-                "no_collusion": True,
-                "honeypot_check_done": True,
-                "reproduction_tested": True
-            }
+
+                "team_members": [
+                    {
+                        "name": "Sikhakolli Lakshman Guru Sai",
+                        "email": "lakshmangurusai24@gmail.com",
+                        "role": "Lead AI/ML Engineer"
+                    },
+                    {
+                        "name": "Sikhakolli Mohana Sai Praneetha",
+                        "email": "mohanasaipraneetha778@gmail.com",
+                        "role": "QA Tester"
+                    }
+                ],
+
+                "github_repo": "https://github.com/Lakshman2405/AegisRank",
+                "sandbox_link": "https://aegisrank-2sylvkc9vbz2nmpxi6yg7c.streamlit.app/",
+                "reproduce_command": "streamlit run src/app.py",
+
+                "hardware_requirements": {
+                    "cpu": "Standard U-Series CPU",
+                    "ram": "16GB RAM",
+                    "gpu": "No dedicated GPU (100% CPU Execution)",
+                    "runtime_minutes": 5
+                },
+
+                "ai_tools_used": [
+                    "Gemini",
+                    "ChatGPT",
+                    "Claude - Sonnet 4.6"
+                ],
+
+                "dataset_statistics": {
+                    "raw_candidates": 96796,
+                    "indexed_candidates": 96796,
+                    "retrieval_depth": 5000,
+                    "final_ranked_candidates": 100
+                },
+
+                "embedding_configuration": {
+                    "model": "BAAI/bge-small-en-v1.5",
+                    "vector_dimensions": 384,
+                    "vector_store": "Qdrant",
+                    "execution_mode": "Offline Local Index"
+                },
+
+                "ranking_signals": [
+                    "Semantic Similarity",
+                    "Years of Experience",
+                    "Recruiter Engagement",
+                    "Candidate Availability",
+                    "Interview Completion Rate",
+                    "Offer Acceptance Rate",
+                    "GitHub Activity",
+                    "Skill Assessment Performance",
+                    "Skill Overlap",
+                    "Retrieval Evidence Score",
+                    "Profile Completeness",
+                    "Notice Period Adjustment"
+                ],
+
+                "system_characteristics": {
+                    "offline_execution": True,
+                    "internet_required_during_evaluation": False,
+                    "prebuilt_vector_index": True,
+                    "explainable_ranking": True,
+                    "deterministic_output": True,
+                    "local_first_architecture": True,
+                    "docker_evaluation_ready" : True,
+                    "streamlit_demo_available" : True,
+                    "local_first_architecture" : True
+                },
+
+                "artifacts_generated": [
+                    "Ranked Candidate CSV",
+                    "Submission Metadata YAML",
+                    "Candidate Recommendation Reasoning"
+                ],
+
+                "methodology_summary": (
+                    "AegisRank is a fully offline candidate retrieval and ranking system "
+                    "designed for large-scale talent evaluation. Raw candidate profiles "
+                    "are processed through a deterministic LangGraph-based ingestion "
+                    "pipeline that performs schema validation, anomaly detection, "
+                    "timeline verification, candidate enrichment, and telemetry extraction. "
+                    "Candidate profiles are transformed into compact semantic narratives "
+                    "containing professional summaries, career history, and skill evidence "
+                    "while structured telemetry captures recruiter engagement signals, "
+                    "availability indicators, assessment performance, verification status, "
+                    "GitHub activity, and profile quality metrics. The enriched dataset is "
+                    "embedded using the BAAI/bge-small-en-v1.5 model and indexed inside a "
+                    "local Qdrant vector database containing 96,796 candidate profiles. "
+                    "During ranking, the target job description is embedded and used to "
+                    "retrieve the top 5,000 semantically relevant candidates. Retrieved "
+                    "candidates are evaluated using a multi-factor ranking engine combining "
+                    "semantic similarity, experience, recruiter engagement, availability, "
+                    "interview behavior, offer acceptance trends, assessment performance, "
+                    "GitHub activity, profile completeness, skill overlap, and retrieval "
+                    "evidence. Additional behavioral modifiers account for notice periods "
+                    "and profile composition patterns. The final Top-100 candidates are "
+                    "generated through a deterministic weighted scoring framework together "
+                    "with explainable recommendation reasoning. The complete workflow "
+                    "executes locally without internet access and is optimized for "
+                    "containerized offline evaluation environments."
+                ),
+                "deployment_notes": {
+                    "streamlit_demo": "Provided for demonstration purposes only.",
+                    "evaluation_mode": (
+                        "Primary evaluation is intended through repository execution "
+                        "using the included clean candidate dataset and prebuilt "
+                        "local Qdrant vector index."
+                    ),
+                    "offline_support": (
+                        "No internet connectivity is required during evaluation. "
+                        "All retrieval and ranking operations execute locally."
+                    ),
+                    "prebuilt_assets": [
+                        "clean_candidates.jsonl",
+                        "local_qdrant_storage"
+                    ]
+                },
+
+                "declaration": (
+                    "This submission executes entirely offline using a prebuilt local "
+                    "vector index and produces deterministic ranking outputs without "
+                    "requiring external APIs or internet connectivity during evaluation. "
+                    "The hosted Streamlit application is provided as a demonstration "
+                    "environment, while the primary evaluation workflow is intended "
+                    "to be executed locally or within a containerized Docker environment "
+                    "using the repository assets and prebuilt index included in the submission."
+                )
         }
         
         with open(yaml_path, "w", encoding="utf-8") as y_file:

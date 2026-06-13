@@ -1,4 +1,5 @@
-team_name: AegisRank
+team_name: Data Dynamas
+team_id: 6a26b0c93c432ee4828a149d
 primary_contact:
   name: Sikhakolli Lakshman Guru Sai
   email: lakshmangurusai24@gmail.com
@@ -17,16 +18,79 @@ hardware_requirements:
   cpu: Standard U-Series CPU
   ram: 16GB RAM
   gpu: No dedicated GPU (100% CPU Execution)
-  runtime_minutes: 2
+  runtime_minutes: 5
 ai_tools_used:
 - Gemini
-methodology_summary: Deterministic offline semantic ranking engine utilizing an in-process
-  local Qdrant instance. Features automated layout pattern guards and mathematical
-  behavioral multipliers to insulate rankings from keyword-stuffed profiles and honeypot
-  structures.
-declarations:
-  read_submission_spec: true
-  code_is_original_work: true
-  no_collusion: true
-  honeypot_check_done: true
-  reproduction_tested: true
+- ChatGPT
+- Claude - Sonnet 4.6
+dataset_statistics:
+  raw_candidates: 96796
+  indexed_candidates: 96796
+  retrieval_depth: 5000
+  final_ranked_candidates: 100
+embedding_configuration:
+  model: BAAI/bge-small-en-v1.5
+  vector_dimensions: 384
+  vector_store: Qdrant
+  execution_mode: Offline Local Index
+ranking_signals:
+- Semantic Similarity
+- Years of Experience
+- Recruiter Engagement
+- Candidate Availability
+- Interview Completion Rate
+- Offer Acceptance Rate
+- GitHub Activity
+- Skill Assessment Performance
+- Skill Overlap
+- Retrieval Evidence Score
+- Profile Completeness
+- Notice Period Adjustment
+system_characteristics:
+  offline_execution: true
+  internet_required_during_evaluation: false
+  prebuilt_vector_index: true
+  explainable_ranking: true
+  deterministic_output: true
+  local_first_architecture: true
+  docker_evaluation_ready: true
+  streamlit_demo_available: true
+artifacts_generated:
+- Ranked Candidate CSV
+- Submission Metadata YAML
+- Candidate Recommendation Reasoning
+methodology_summary: AegisRank is a fully offline candidate retrieval and ranking
+  system designed for large-scale talent evaluation. Raw candidate profiles are processed
+  through a deterministic LangGraph-based ingestion pipeline that performs schema
+  validation, anomaly detection, timeline verification, candidate enrichment, and
+  telemetry extraction. Candidate profiles are transformed into compact semantic narratives
+  containing professional summaries, career history, and skill evidence while structured
+  telemetry captures recruiter engagement signals, availability indicators, assessment
+  performance, verification status, GitHub activity, and profile quality metrics.
+  The enriched dataset is embedded using the BAAI/bge-small-en-v1.5 model and indexed
+  inside a local Qdrant vector database containing 96,796 candidate profiles. During
+  ranking, the target job description is embedded and used to retrieve the top 5,000
+  semantically relevant candidates. Retrieved candidates are evaluated using a multi-factor
+  ranking engine combining semantic similarity, experience, recruiter engagement,
+  availability, interview behavior, offer acceptance trends, assessment performance,
+  GitHub activity, profile completeness, skill overlap, and retrieval evidence. Additional
+  behavioral modifiers account for notice periods and profile composition patterns.
+  The final Top-100 candidates are generated through a deterministic weighted scoring
+  framework together with explainable recommendation reasoning. The complete workflow
+  executes locally without internet access and is optimized for containerized offline
+  evaluation environments.
+deployment_notes:
+  streamlit_demo: Provided for demonstration purposes only.
+  evaluation_mode: Primary evaluation is intended through repository execution using
+    the included clean candidate dataset and prebuilt local Qdrant vector index.
+  offline_support: No internet connectivity is required during evaluation. All retrieval
+    and ranking operations execute locally.
+  prebuilt_assets:
+  - clean_candidates.jsonl
+  - local_qdrant_storage
+declaration: This submission executes entirely offline using a prebuilt local vector
+  index and produces deterministic ranking outputs without requiring external APIs
+  or internet connectivity during evaluation. The hosted Streamlit application is
+  provided as a demonstration environment, while the primary evaluation workflow is
+  intended to be executed locally or within a containerized Docker environment using
+  the repository assets and prebuilt index included in the submission.

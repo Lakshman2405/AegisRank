@@ -29,7 +29,7 @@ if "retrieval_engine_instance" not in st.session_state:
         engine = IntelligentRetrievalEngine()
         engine.synchronize_vector_repository(
             clean_cache_path=clean_dataset_cache, 
-            indexing_batch_limit=200
+            indexing_batch_limit= 1000
         )
         st.session_state["retrieval_engine_instance"] = engine
     st.success("⚡ Cloud Vector Cluster fully synchronized with the 96k payload!")
